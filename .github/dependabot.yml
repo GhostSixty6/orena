@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "electron"
+      - dependency-name: "electron-builder"
+      - dependency-name: "sass"
+
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+
+    open-pull-requests-limit: 20

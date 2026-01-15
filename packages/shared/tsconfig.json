@@ -1,0 +1,6 @@
+{
+  "extends": "tsconfig/shared.json",
+  "exclude": [
+    "eslint.config.mjs",
+  ]
+}
