@@ -1,13 +1,13 @@
-import crypto from 'crypto';
+import crypto from "crypto";
 import {
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { User } from '@/db/user.entity';
-import { hashPassword } from '@/auth/utils/hash-password';
-import { ConfigService } from '@nestjs/config';
+} from "@nestjs/common";
+import { PrismaService, User, Role } from "@/db";
+import { hashPassword } from "@/auth/utils/hash-password";
+import { ConfigService } from "@nestjs/config";
 import {
   UserProfileResponse,
   UserCreateDto,
@@ -16,36 +16,54 @@ import {
   UserUpdateSelfPasswordDto,
   PaginationResponse,
   PaginationDto,
-} from 'shared';
+} from "shared";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   getProfile(user: User): UserProfileResponse {
-    const { ...restUser } = user;
-    const avatar = this.getAvatar(restUser.email);
-    return { ...restUser, avatar };
-  }
-
-  private updateProfile(user: User, userUpdateSelfDto: UserUpdateSelfDto): User {
-    user.firstName = userUpdateSelfDto.firstName;
-    user.lastName = userUpdateSelfDto.lastName;
-    user.position = userUpdateSelfDto.position;
-    return user;
+    const avatar = this.getAvatar(user.email);
+    return {
+      id: user.id,
+      role: user.role as unknown as UserProfileResponse["role"],
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      position: user.position,
+      avatar,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+    };
   }
 
   private getAvatar(email: string): string {
-    const hash = crypto.createHash('md5').update(email.toLowerCase()).digest('hex');
+    const hash = crypto
+      .createHash("md5")
+      .update(email.toLowerCase())
+      .digest("hex");
     const avatar = `https://www.gravatar.com/avatar/${hash}?s=200&d=mp`;
     return avatar;
   }
 
-  async updateSelf(user: User, userUpdateSelfDto: UserUpdateSelfDto): Promise<UserProfileResponse> {
-    user = this.updateProfile(user, userUpdateSelfDto);
+  async updateSelf(
+    user: User,
+    userUpdateSelfDto: UserUpdateSelfDto,
+  ): Promise<UserProfileResponse> {
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        firstName: userUpdateSelfDto.firstName,
+        lastName: userUpdateSelfDto.lastName,
+        position: userUpdateSelfDto.position,
+      },
+    });
 
-    await user.save();
-    return this.getProfile(user);
+    return this.getProfile(updatedUser);
   }
 
   async updateSelfPassword(
@@ -54,72 +72,92 @@ export class UsersService {
   ): Promise<UserProfileResponse> {
     const oldHash = hashPassword(
       userUpdateSelfPasswordDto.password,
-      this.configService.get<string>('secrets.pwdsalt'),
+      this.configService.get<string>("secrets.pwdsalt"),
     );
 
-    if (user.hash === oldHash) {
-      user.hash = hashPassword(
-        userUpdateSelfPasswordDto.newPassword,
-        this.configService.get<string>('secrets.pwdsalt'),
-      );
-    } else {
-      throw new ForbiddenException('Wrong password');
+    if (user.hash !== oldHash) {
+      throw new ForbiddenException("Wrong password");
     }
 
-    await user.save();
-    return this.getProfile(user);
+    const newHash = hashPassword(
+      userUpdateSelfPasswordDto.newPassword,
+      this.configService.get<string>("secrets.pwdsalt"),
+    );
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { hash: newHash },
+    });
+
+    return this.getProfile(updatedUser);
   }
 
   async createOne(userCreateDto: UserCreateDto): Promise<UserProfileResponse> {
-    const countSameEmailUser = await User.countBy({ email: userCreateDto.email });
+    const countSameEmailUser = await this.prisma.user.count({
+      where: { email: userCreateDto.email },
+    });
 
     if (countSameEmailUser > 0)
-      throw new ConflictException('A user with this email address already exists');
+      throw new ConflictException(
+        "A user with this email address already exists",
+      );
 
-    const user: User = new User();
+    const user = await this.prisma.user.create({
+      data: {
+        email: userCreateDto.email,
+        hash: hashPassword(
+          userCreateDto.password,
+          this.configService.get<string>("secrets.pwdsalt"),
+        ),
+        firstName: userCreateDto.firstName,
+        lastName: userCreateDto.lastName,
+        role: userCreateDto.role as Role | undefined,
+      },
+    });
 
-    user.email = userCreateDto.email;
-    user.hash = hashPassword(
-      userCreateDto.password,
-      this.configService.get<string>('secrets.pwdsalt'),
-    );
-    user.firstName = userCreateDto.firstName;
-    user.lastName = userCreateDto.lastName;
-    if (userCreateDto.role) user.role = userCreateDto.role;
-
-    await user.save();
     return this.getProfile(user);
   }
 
-  async getMany(paginationDto: PaginationDto): Promise<PaginationResponse<UserProfileResponse>> {
-    const queryBuilder = User.createQueryBuilder('users');
+  async getMany(
+    paginationDto: PaginationDto,
+  ): Promise<PaginationResponse<UserProfileResponse>> {
+    const where: Prisma.UserWhereInput = {};
 
-    if (paginationDto.filter)
-      queryBuilder.where(
-        `LOWER(CONCAT(users.firstName, ' ', users.lastName, ' ', users.email)) LIKE :filter`,
-        {
-          filter: `%${paginationDto.filter.toLowerCase()}%`,
-        },
-      );
-
-    queryBuilder.take(paginationDto.take).skip((paginationDto.page - 1) * paginationDto.take);
-
-    switch (paginationDto.sortBy) {
-      case 'name':
-        queryBuilder.addOrderBy('users.firstName', paginationDto.descending ? 'DESC' : 'ASC');
-        queryBuilder.addOrderBy('users.lastName', paginationDto.descending ? 'DESC' : 'ASC');
-        break;
-      case 'role':
-        queryBuilder.addOrderBy('users.role', paginationDto.descending ? 'DESC' : 'ASC');
-        break;
-      case 'createdAt':
-        queryBuilder.addOrderBy('users.createdAt', paginationDto.descending ? 'DESC' : 'ASC');
-        break;
-      default:
-        queryBuilder.addOrderBy('users.role', 'ASC');
+    if (paginationDto.filter) {
+      const filterLower = paginationDto.filter.toLowerCase();
+      where.OR = [
+        { firstName: { contains: filterLower, mode: "insensitive" } },
+        { lastName: { contains: filterLower, mode: "insensitive" } },
+        { email: { contains: filterLower, mode: "insensitive" } },
+      ];
     }
 
-    const [foundUsers, total] = await queryBuilder.getManyAndCount();
+    const orderBy: Prisma.UserOrderByWithRelationInput[] = [];
+    const direction = paginationDto.descending ? "desc" : "asc";
+
+    switch (paginationDto.sortBy) {
+      case "name":
+        orderBy.push({ firstName: direction }, { lastName: direction });
+        break;
+      case "role":
+        orderBy.push({ role: direction });
+        break;
+      case "createdAt":
+        orderBy.push({ createdAt: direction });
+        break;
+      default:
+        orderBy.push({ role: "asc" });
+    }
+
+    const [foundUsers, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        orderBy,
+        take: paginationDto.take,
+        skip: (paginationDto.page - 1) * paginationDto.take,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
 
     return {
       page: paginationDto.page,
@@ -130,36 +168,49 @@ export class UsersService {
   }
 
   async getOne(id: string): Promise<UserProfileResponse> {
-    const foundUser = await User.findOneBy({ id });
+    const foundUser = await this.prisma.user.findUnique({ where: { id } });
 
     if (!foundUser) throw new NotFoundException();
     return this.getProfile(foundUser);
   }
 
-  async updateOne(id: string, userUpdateDto: UserUpdateDto): Promise<UserProfileResponse> {
-    const foundUser = await User.findOneBy({ id });
+  async updateOne(
+    id: string,
+    userUpdateDto: UserUpdateDto,
+  ): Promise<UserProfileResponse> {
+    const foundUser = await this.prisma.user.findUnique({ where: { id } });
 
     if (!foundUser) throw new NotFoundException();
 
-    const user = this.updateProfile(foundUser, userUpdateDto);
+    const data: Prisma.UserUpdateInput = {
+      firstName: userUpdateDto.firstName,
+      lastName: userUpdateDto.lastName,
+      position: userUpdateDto.position,
+      isActive: userUpdateDto.isActive,
+      role: userUpdateDto.role as Role,
+    };
 
-    if (userUpdateDto.password.length)
-      user.hash = hashPassword(
+    if (userUpdateDto.password.length) {
+      data.hash = hashPassword(
         userUpdateDto.password,
-        this.configService.get<string>('secrets.pwdsalt'),
+        this.configService.get<string>("secrets.pwdsalt"),
       );
+    }
 
-    user.isActive = userUpdateDto.isActive;
-    user.role = userUpdateDto.role;
+    const updatedUser = await this.prisma.user.update({
+      where: { id },
+      data,
+    });
 
-    await user.save();
-    return this.getProfile(user);
+    return this.getProfile(updatedUser);
   }
 
   async deleteOne(id: string): Promise<number> {
-    const query = await User.delete({ id });
-
-    if (query.affected === 0) throw new NotFoundException();
-    return query.affected;
+    try {
+      await this.prisma.user.delete({ where: { id } });
+      return 1;
+    } catch {
+      throw new NotFoundException();
+    }
   }
 }

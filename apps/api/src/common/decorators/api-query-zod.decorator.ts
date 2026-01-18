@@ -1,13 +1,13 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiQuery } from '@nestjs/swagger';
-import { zodToOpenAPI } from 'nestjs-zod';
-import { ZodTypeAny } from 'zod';
+import { zodV3ToOpenAPI } from 'nestjs-zod';
+import type { ZodTypeAny } from 'zod';
 
 export function ApiQueryZod(zodSchema: ZodTypeAny): MethodDecorator {
-  const schema = zodToOpenAPI(zodSchema);
+  const schema = (zodV3ToOpenAPI as any)(zodSchema);
   const decorators: MethodDecorator[] = [];
 
-  for (const [key, schm] of Object.entries(schema.properties)) {
+  for (const [key, schm] of Object.entries(schema.properties ?? {})) {
     decorators.push(
       ApiQuery({
         name: key,

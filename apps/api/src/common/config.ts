@@ -6,8 +6,10 @@ const configSchema = z.object({
     port: z.coerce.number().default(3000),
     cors: z
       .string()
+      .optional()
+      .default('["http://localhost"]')
       .transform((val) => JSON.parse(val))
-      .pipe(z.array(z.string()).default(['http://localhost'])),
+      .pipe(z.array(z.string())),
   }),
 
   db: z.object({

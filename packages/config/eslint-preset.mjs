@@ -1,5 +1,10 @@
 import { FlatCompat } from '@eslint/eslintrc';
 import js from '@eslint/js';
+import pluginVue from 'eslint-plugin-vue';
+import vueParser from 'vue-eslint-parser';
+import tseslint from '@typescript-eslint/eslint-plugin';
+import tsParser from '@typescript-eslint/parser';
+import prettierPlugin from 'eslint-plugin-prettier';
 
 const compat = new FlatCompat({
   recommendedConfig: js.configs.recommended,
@@ -22,6 +27,7 @@ const baseRules = {
   '@typescript-eslint/no-unsafe-call': 'off',
   '@typescript-eslint/no-unsafe-member-acces': 'off',
   '@typescript-eslint/no-empty-interface': 'off',
+  '@typescript-eslint/no-empty-object-type': 'off',
   '@typescript-eslint/ban-ts-comment': 'off',
   '@typescript-eslint/no-unsafe-declaration-merging': 'off',
   '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
@@ -38,6 +44,7 @@ export default [
       '**/build',
       '**/components.d.ts',
       '**/.nuxt',
+      '**/.output',
       '**/.turbo',
       '**/*.min.js',
     ],
@@ -66,30 +73,31 @@ export default [
       files: ['**/*.ts', '**/*.tsx'],
     })),
 
-  ...compat
-    .config({
-      extends: [
-        'plugin:vue/vue3-essential',
-        '@vue/eslint-config-typescript/recommended',
-        '@vue/eslint-config-prettier',
-      ],
-
-      plugins: ['@typescript-eslint', 'prettier'],
-
-      env: {
-        'vue/setup-compiler-macros': true,
+  // Vue configuration using flat config
+  ...pluginVue.configs['flat/essential'].map((config) => ({
+    ...config,
+    files: ['**/*.vue'],
+  })),
+  {
+    files: ['**/*.vue'],
+    languageOptions: {
+      parser: vueParser,
+      parserOptions: {
+        parser: tsParser,
+        ecmaVersion: 'latest',
+        sourceType: 'module',
       },
-
-      rules: {
-        ...baseRules,
-        'vue/multi-word-component-names': 'off',
-        'vue/block-order': ['error', { order: ['template', 'style', 'script'] }],
-      },
-    })
-    .map((config) => ({
-      ...config,
-      files: ['**/*.vue'],
-    })),
+    },
+    plugins: {
+      '@typescript-eslint': tseslint,
+      prettier: prettierPlugin,
+    },
+    rules: {
+      ...baseRules,
+      'vue/multi-word-component-names': 'off',
+      'vue/block-order': ['error', { order: ['template', 'style', 'script'] }],
+    },
+  },
 
   ...compat
     .config({

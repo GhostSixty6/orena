@@ -1,8 +1,8 @@
-import { Strategy } from 'passport-jwt';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
-import { ConfigService } from '@nestjs/config';
-import { Session } from '@/db/session.entity';
+import { Strategy } from "passport-jwt";
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { PassportStrategy } from "@nestjs/passport";
+import { ConfigService } from "@nestjs/config";
+import { PrismaService } from "@/db";
 
 export interface JwtPayload {
   id: string;
@@ -10,20 +10,24 @@ export interface JwtPayload {
 
 function tokenExtractor(req: any): null | string {
   const bearerToken =
-    req.headers.authorization && req.headers.authorization.includes('Bearer ')
-      ? req.headers.authorization.replace('Bearer ', '')
+    req.headers.authorization && req.headers.authorization.includes("Bearer ")
+      ? req.headers.authorization.replace("Bearer ", "")
       : null;
 
   if (bearerToken) return bearerToken;
-  else return req && req.cookies ? (req.cookies?.jwt as string) ?? null : null;
+  else
+    return req && req.cookies ? ((req.cookies?.jwt as string) ?? null) : null;
 }
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor(configService: ConfigService) {
+export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
+  constructor(
+    configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     super({
       jwtFromRequest: tokenExtractor,
-      secretOrKey: configService.get<string>('secrets.jwt'),
+      secretOrKey: configService.get<string>("secrets.jwt"),
     });
   }
 
@@ -32,20 +36,19 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException();
     }
 
-    const userSession = await Session.findOne({
-      relations: ['user'],
-
-      where: {
-        token: payload.id,
-      },
+    const userSession = await this.prisma.session.findFirst({
+      where: { token: payload.id },
+      include: { user: true },
     });
 
     if (!userSession) {
       throw new UnauthorizedException();
     }
 
-    userSession.lastSeen = new Date();
-    userSession.save();
+    await this.prisma.session.update({
+      where: { id: userSession.id },
+      data: { lastSeen: new Date() },
+    });
 
     return userSession;
   }

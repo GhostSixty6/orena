@@ -2,8 +2,8 @@ version: "3.8"
 
 services:
   api:
-    container_name: turbo-starter-api
-    image: dhivinx/turbo-starter-api:0.0.1
+    container_name: orena-api
+    image: dhivinx/orena-api:0.0.1
     build:
       context: .
       dockerfile: ./.docker/api/Dockerfile.prod
@@ -16,8 +16,8 @@ services:
     restart: always
 
   web:
-    container_name: turbo-starter-web
-    image: dhivinx/turbo-starter-web:0.0.1
+    container_name: orena-web
+    image: dhivinx/orena-web:0.0.1
     build:
       context: .
       dockerfile: ./.docker/web/Dockerfile.prod
@@ -30,12 +30,12 @@ services:
     restart: always
 
   postgres:
-    container_name: turbo-starter-postgres
+    container_name: orena-postgres
     image: postgres
     env_file:
       - .env.prod
     volumes:
-      - turbo-starter-postgres-data:/var/lib/postgresql/data
+      - orena-postgres-data:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=${DATABASE_NAME}
       - POSTGRES_USER=${DATABASE_USER}
@@ -43,6 +43,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  turbo-starter-postgres-data:
-
-
+  orena-postgres-data:

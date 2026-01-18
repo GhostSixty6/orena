@@ -1,6 +1,8 @@
-import { Session } from '@/db/session.entity';
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { SessionWithUser } from "@/db";
+import { createParamDecorator, ExecutionContext } from "@nestjs/common";
 
-export const AuthSession = createParamDecorator((_data, context: ExecutionContext): Session => {
-  return context.switchToHttp().getRequest().userSession;
-});
+export const AuthSession = createParamDecorator(
+  (_data, context: ExecutionContext): SessionWithUser | null => {
+    return context.switchToHttp().getRequest().userSession ?? null;
+  },
+);

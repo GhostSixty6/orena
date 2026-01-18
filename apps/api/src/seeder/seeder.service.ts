@@ -1,24 +1,34 @@
-import { UsersService } from '@/users/users.service';
-import { ConflictException, Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
-import { usersSeedData } from './data/users.seed';
-import { timeout, UserCreateDto } from 'shared';
-import { User } from '@/db/user.entity';
+import { UsersService } from "@/users/users.service";
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+} from "@nestjs/common";
+import { usersSeedData } from "./data/users.seed";
+import { timeout, UserCreateDto } from "shared";
+import { PrismaService } from "@/db";
 
 @Injectable()
 export class SeederService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SeederService.name);
 
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async onApplicationBootstrap() {
     await this.seedUsers(usersSeedData);
   }
 
   async seedUsers(users: UserCreateDto[]) {
-    const userCount = await User.count();
+    const userCount = await this.prisma.user.count();
 
     if (userCount > 0) {
-      this.logger.log(`The system already has ${userCount} users. Users seed skipped.`);
+      this.logger.log(
+        `The system already has ${userCount} users. Users seed skipped.`,
+      );
       return;
     }
 
@@ -31,7 +41,7 @@ export class SeederService implements OnApplicationBootstrap {
         this.logger.verbose(`Account has been created! ID: ${user.id}`);
       } catch (e) {
         if (e instanceof ConflictException) {
-          this.logger.error('The account already exists');
+          this.logger.error("The account already exists");
         } else {
           this.logger.error(e);
         }

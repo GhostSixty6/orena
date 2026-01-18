@@ -9,10 +9,10 @@ import {
   Post,
   Put,
   Query,
-} from '@nestjs/common';
-import { UsersService } from './users.service';
-import { AuthUser } from '@/auth/decorators/auth-user.decorator';
-import { User } from '@/db/user.entity';
+} from "@nestjs/common";
+import { UsersService } from "./users.service";
+import { AuthUser } from "@/auth/decorators/auth-user.decorator";
+import { User } from "@/db";
 import {
   UserCreateDto,
   UserProfileResponse,
@@ -21,18 +21,18 @@ import {
   UserUpdateSelfPasswordDto,
   PaginationResponse,
   PaginationDto,
-} from 'shared';
+} from "shared";
 
-@Controller('/users')
+@Controller("/users")
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Get('/self')
+  @Get("/self")
   async getSelf(@AuthUser() user: User) {
     return this.usersService.getProfile(user);
   }
 
-  @Put('/self')
+  @Put("/self")
   async updateSelf(
     @AuthUser() user: User,
     @Body() userUpdateSelfDto: UserUpdateSelfDto,
@@ -40,43 +40,50 @@ export class UsersController {
     return await this.usersService.updateSelf(user, userUpdateSelfDto);
   }
 
-  @Put('/self/password')
+  @Put("/self/password")
   async updateSelfPassword(
     @AuthUser() user: User,
     @Body() userUpdateSelfPasswordDto: UserUpdateSelfPasswordDto,
   ): Promise<UserProfileResponse> {
-    return await this.usersService.updateSelfPassword(user, userUpdateSelfPasswordDto);
+    return await this.usersService.updateSelfPassword(
+      user,
+      userUpdateSelfPasswordDto,
+    );
   }
 
-  @Post('/')
-  async createOne(@Body() userCreateDto: UserCreateDto): Promise<UserProfileResponse> {
+  @Post("/")
+  async createOne(
+    @Body() userCreateDto: UserCreateDto,
+  ): Promise<UserProfileResponse> {
     return await this.usersService.createOne(userCreateDto);
   }
 
-  @Get('/')
+  @Get("/")
   async getMany(
     @Query() paginationDto: PaginationDto,
   ): Promise<PaginationResponse<UserProfileResponse>> {
     return await this.usersService.getMany(paginationDto);
   }
 
-  @Get('/:id')
-  async getOne(@Param('id', ParseUUIDPipe) id: string): Promise<UserProfileResponse> {
+  @Get("/:id")
+  async getOne(
+    @Param("id", ParseUUIDPipe) id: string,
+  ): Promise<UserProfileResponse> {
     return await this.usersService.getOne(id);
   }
 
-  @Put('/:id')
+  @Put("/:id")
   async updateOne(
     @AuthUser() user: User,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() userUpdateDto: UserUpdateDto,
   ): Promise<UserProfileResponse> {
     if (id === user.id) throw new ForbiddenException();
     return await this.usersService.updateOne(id, userUpdateDto);
   }
 
-  @Delete('/:id')
-  async deleteOne(@Param('id', ParseUUIDPipe) id: string): Promise<number> {
+  @Delete("/:id")
+  async deleteOne(@Param("id", ParseUUIDPipe) id: string): Promise<number> {
     return await this.usersService.deleteOne(id);
   }
 }
