@@ -24,10 +24,10 @@
     "tsconfig": "workspace:*",
     "tslib": "^2.8.1",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.0",
+    "vitest": "^4.0.17",
     "vue-tsc": "^3.2.2"
   },
   "dependencies": {
-    "@nuxt/ui": "^4.3.0"
+    "@nuxt/ui": "^4.4.0"
   }
 }
